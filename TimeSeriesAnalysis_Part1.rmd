@@ -1,0 +1,425 @@
+---
+title: "Time Series Analysis (Part 1)"
+author: "Ken Siu"
+date: "2023-10-30"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Description
+
+Time series analysis is an important area in statistics, data science and econometrics. A time series is a set of observations which are recorded sequentially over time. Time series data appear in diverse fields including, but not limited to, actuarial science, biological science, business analytics, climate science, computer science, cognitive science, economics, ecology, environmental science, finance, hydrology, and medical science. The analysis of time series data provides important insights into knowledge discovery and making predictions. 
+
+This workshop aims to provide a basic introduction to the use of R for analysing real time series data. Attention will be given to linear time series models such as autoregressive (AR) models, moving average (MA) models, autoregressive moving average (ARMA) models, and autoregressive integrated moving average (ARIMA) models. The ARMA model is a fusion of the AR model and the MA model. The "I" in the ARIMA model means "integration". This represents the kind of non-stationarity in a time series which can be removed by taking differences. The use of the Box–Jenkins method for linear time series model building will be considered. 
+The Box-Jenkins method consists of four major steps, namely identification, estimation, diagnostic checking and forecasting.
+It may be noted that subjective judgement may involve in selecting and identifying a model.
+
+We shall consider a real time series data set, namely the 3-Month Treasury Bill Secondary Market Rate, Discount Basis (TB3MS) from January 1934 to September 2023. (Source: Board of Governors of the Federal Reserve System (US), 3-Month Treasury Bill Secondary Market Rate, Discount Basis [TB3MS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/TB3MS>, October 29,2023). Some references of this workshop include Chan (2004), Tsay (2013) and Box et al. (2015) (Please see the reference section at the end for details.).
+
+## Let us start!
+
+
+```{r}
+#Import the TB3MS data
+Data <- read.csv("TB3MS.csv", header=T)
+#Extract the data in the column "TB3MS"
+TB3Data <- Data$TB3MS
+#Define the TB3MS data as a time series object
+TB3ts <- ts(TB3Data, frequency=12,start=c(1934,1))
+```
+
+```{r}
+#Create the time series plot for the monthly TB3MS data
+plot(TB3ts,xlab='year',ylab='TB3', main = "Figure 1: Monthly TB3 Data")
+```
+
+From Figure 1, it can be seen that there was an increasing trend from 1934 to 1980s.
+It then followed by a decreasing trend till around 2020. It is clear that 
+the monthly TB3 data is non-stationary. To further confirm the non-stationarity 
+of the monthly TB3 data, we look at the sample autocorrelation function (ACF)
+plot and the sample partial autocorrelation function (PACF) plot for the
+monthly TB3 data.
+
+```{r}
+#Create the sample ACF plot for the monthly TB3 data up to lag 36
+acf(TB3Data, lag = 36, main = "Figure 2: Sample ACF of Monthly TB3 Data")
+#Create the sample PACF plot for the monthly TB3 data up to lag 36
+pacf(TB3Data, lag = 36, main = "Figure 3: Sample PACF of Monthly TB3 Data")
+```
+
+From Figure 2, we see that the sample ACF takes large values and does not decay
+(at least up to lag 36). Furthermore, from Figure 3, the sample PACF takes large values at several lags.
+Consequently, the results depicted in Figures 2-3 further confirm
+the non-stationarity of the monthly TB3MS data.
+
+To deal with non-stationarity, we consider the difference in the logarithmic
+data, which may be interpreted as the monthly logarithmic return from the TB3.
+
+```{r}
+#Calculate the monthly logarithmic return from the TB3 as a time series object
+TB3LR <- diff(log(TB3ts))
+#Create the time series plot for the monthly logarithmic return from the TB3
+plot(TB3LR,xlab='year',ylab='TB3 Log Return', main = "Figure 4: Monthly Log Return")
+```
+
+From Figure 4, it can be observed that the trends are removed. The 
+logarithmic return series appears to be more stationary than the original series.
+However, we come across another issue here. The variation of the logarithmic
+return series changes over time. Specifically, there is a higher level of variation 
+in some parts of the logarithmic return series. See, for example, the period 
+from 1934 to 1940 and the period from 2010 to 2020. These periods are called
+volatile periods. There is a lower level of variation in other parts of the logarithmic
+return series. See, for example, the period from 1960 to 1970 and the period from 1990 to 2000.
+These periods are called tranquil periods. Indeed, it looks that volatile periods
+are followed by volatile periods and that tranquil periods are followed by 
+tranquil periods. This phenomenon is called volatility clustering in the finance
+and economic literature. It may be noted that linear time series models cannot
+incorporate time-varying volatility and volatility clustering. To model these
+empirical features, we need to consider nonlinear time series models such as
+the autoregressive conditional heteroscedastic (ARCH) model (Engle (1982)), the generalized
+ARCH (GARCH) model (Bollerslev (1986) and Taylor (1986)), and their variants. 
+In this workshop, we consider linear time series models only. Consequently,
+we do not deal with time-varying volatility and volatility clustering.
+
+Now we look at the sample ACF plot and the sample PACF plot for the logarithmic
+return series.
+
+```{r}
+#Calculate the monthly logarithmic return from the TB3 data
+TB3LRData <- diff(log(TB3Data))
+#Create the sample ACF plot of the logarithmic return up to lag 36
+acf(TB3LRData, lag = 36, main = "Figure 5: Sample ACF for the Monthly Log Return")
+#Create the sample PACF plot of the logarithmic return up to lag 36
+pacf(TB3LRData, lag = 36, main = "Figure 6: Sample PACF for the Monthly Log Return")
+```
+
+Comparing Figure 5 with Figure 2, the sample ACF for the monthly log return series takes much lower values than the sample ACF for the original series. This indicates that taking the difference in the logarithmic series can remove non-stationarity in some extent. However, from Figure 6, it can be seen that the sample PACF for the monthly log return series appears to be significantly different from zero at several lags. Of course, we may further take differencing to see if the stationarity of the differenced series is further improved. However, the further differenced series may not be easy to interpret. Consequently, we stick with the (first-order) difference of the logarithmic series, which is interpreted as the monthly logarithmic return series from the TB3.
+
+We shall now fit linear time series models to the monthly logarithmic return series from the TB3. Firstly, we consider
+an autoregressive (AR) model. The first thing is to determine
+the order of the AR model. 
+
+```{r}
+#Select the order of an AR model
+FitAR <- ar(TB3LRData)
+FitAR
+#Extract the selected order 
+FitAR$order
+```
+Using the "ar" function as above, the order of an AR model is determined as 28. Then we use the "arima" function to fit the AR(28) model to the monthly log return series.
+
+```{r}
+#Fit an AR(28) model to the monthly log return series
+FitAR28 <- arima(TB3LRData, order = c(28,0,0))
+FitAR28
+```
+
+As we see, it takes quite sometime to fit the AR(28) model since
+there are many parameters to be estimated in the model.
+After fitting the model, we conduct a diagnostic check 
+for the fitted AR(28) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted AR(28) model
+tsdiag(FitAR28, gof.lag = 36)
+```
+
+From the standardized residuals plot, there are changing volatility and volatility clustering in the standardized residuals series. As expected, the fitted AR(28) model, 
+which is a linear time series model, cannot explain
+changing volatility and volatility clustering. Consequently,
+these two empirical features still remain in the standardized
+residuals after fitting the AR(28) model. As mentioned
+before, we shall need nonlinear time series models, such as (G)ARCH models, to incorporate changing volatility and volatility
+clustering. From the sample ACF plot of the residuals, almost all of the sample ACF values (up to lag 36) are not significantly different from zero. Furthermore, from the plot of the p values
+for the Ljung-Box statistic, all the p values (up to lag 36) are
+large. These indicate that the AR(28) model may fit the monthly log return series well. Specifically, it may fit the conditional mean of the monthly log return series well. This may not be very surprising as the AR(28) model contains many parameters.
+However, from the perspective of parsimony, we may consider another model with less parameters. 
+
+From Figure 6, the sample PACF values are significantly different from zero at many lags. For example,
+the sample PACF values are significantly different from zero at lags 1, 2, 3, 4, 9, 12, 15, 16, 27, 31, 35. 
+This indicates that an AR model with a low order is not adequate. Furthermore, from Figure 5, the sample ACF values are significantly different from zero at lags 1, 2, 3, 9, 12, 14, 15, 16, 19, 22, 27, 31, 34. This 
+indicates that a MA model with a low order is not adequate. Of course, one may consider fitting either an AR model with a high order or a MA model with a high order. However, this could be computationally expensive and is not consistent with the principle of parsimony. Instead of fitting either an AR model with a high order or a MA model with a high order, we may start with a simple ARMA model, say the ARMA(1,1) model.  
+
+```{r}
+#Fit an ARMA(1,1) model to the monthly log return series
+FitARMA11 <- arima(TB3LRData, order = c(1,0,1))
+FitARMA11 
+```
+
+From the estimation results of the ARMA(1,1) model, the estimates of the AR coefficient, 
+the MA coefficient and the intercept are -0.4692, 0.6969 and 0.0019, respectively. 
+Their respective standard errors are 0.0698, 0.0556 and 0.0076, respectively.
+It is obvious that the intercept is not significant for its estimate is 
+relatively small compared with the standard error of the estimate.
+However, for the AR and MA coefficients, their estimates are relatively 
+large compared with the standard errors of the estimates. Consequently,
+we may conclude that the AR and MA coefficients are significant. 
+To confirm this conclusion, we can conduct a student-t test 
+for each of the AR and MA coefficients.
+
+
+```{r}
+#Compute the t-ratio for the AR coefficient
+t_ratio_AR <- -0.4692/0.0698
+t_ratio_AR
+#Compute the t-ratio for the MA coefficient
+t_ratio_MA <-  0.6969/0.0556 
+t_ratio_MA
+```
+
+It is clear that the absolute values of the t-ratios for the AR and MA coefficients are greater than
+1.96. Consequently, we may conclude that both the AR and MA coefficients
+are significant at 5% significance level.
+
+After fitting the model, we conduct a diagnostic check 
+for the fitted ARMA(1,1) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted ARMA(1,1) model
+tsdiag(FitARMA11, gof.lag = 36)
+```
+
+From the standardized residuals plot, the standardized residuals series exhibits changing volatility and volatility clustering. This is as expected. 
+Since the ARMA(1,1) model is a linear time series model, it cannot 
+capture changing volatility and volatility clustering. From the sample ACF plot of the residuals, the ARMA(1,1) model appears to fit the monthly logarithmic return series quite well since the sample ACF values are not significantly different from zero at many lags. However, from the plot of the p values
+for the Ljung-Box statistic, it can be seen that the p values drop below the blue line, (which indicates the 5% significance level), from lag 12 onward. This indicates that the ARMA(1,1) model cannot fit the data well and that either an AR model with a high order or a MA model with a high order may be needed. Of course, by comparing the p values of the Ljung-Box statistic for the fitted ARMA(1,1) model with those for the fitted AR(28) model, it can be seen that the latter can fit the data better than the former.
+
+With the principle of parsimony in mind, we increase the order of a model by one at a time to 
+see if the fitting performance is improved. There are two possibilities, say increasing the AR order by one or increasing the MA order by one. Let us first increase the AR order by one. That is, an ARMA(2, 1) 
+model is considered first.
+
+```{r}
+#Fit an ARMA(2,1) model to the monthly log return series
+FitARMA21 <- arima(TB3LRData, order = c(2,0,1))
+FitARMA21 
+```
+
+From the estimation results of the ARMA(2,1) model, it may be seen that 
+the AR2 coefficient and the intercept are not significant since 
+their estimates and the standard errors of the estimates are of 
+comparable magnitude. Consequently, we may conclude that 
+the ARMA(2, 1) model cannot fit the data well. Of course,
+to further confirm this, we conduct a diagnostic check 
+for the fitted ARMA(2, 1) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted ARMA(2,1) model
+tsdiag(FitARMA21, gof.lag = 36)
+```
+
+From the standardized residuals plot and the plot of the p values for the Ljung-Box statistic, the fitted ARMA(2, 1) model cannot fit the data well. 
+
+We now fit an ARMA(1,2) model to the monthly logarithmic return series.
+
+```{r}
+#Fit an ARMA(1,2) model to the monthly log return series
+FitARMA12 <- arima(TB3LRData, order = c(1,0,2))
+FitARMA12 
+```
+
+From the estimation results of the ARMA(1, 2) model, it may be seen that 
+the parameter estimates and their standard errors are of 
+comparable magnitude. Consequently, we may conclude that 
+the ARMA(1, 2) model cannot fit the data well. We confirm this 
+by conducting a diagnostic check for the fitted ARMA(1, 2) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted ARMA(1,2) model
+tsdiag(FitARMA12, gof.lag = 36)
+```
+
+Like the ARMA(2,1) model, the ARMA(1,2) model cannot fit the data well.
+
+From Figure 6, the sample PACF values are large at lags 1-4. 
+We may try an AR(4) model.
+
+```{r}
+#Fit an AR(4) model to the monthly log return series
+FitAR4 <- arima(TB3LRData, order = c(4,0,0))
+FitAR4 
+```
+
+From the estimation results of the AR(4) model, the AR4 coefficient
+is not very significant. Consequently, we may try an AR(3) model instead.
+
+```{r}
+#Fit an AR(3) model to the monthly log return series
+FitAR3 <- arima(TB3LRData, order = c(3,0,0))
+FitAR3 
+```
+
+It looks that all the AR coefficients are significantly different
+from zero. To confirm this, we can conduct a student-t test 
+for each of the AR coefficients.
+
+
+```{r}
+#Compute the t-ratio for the AR coefficients
+t_ratio_AR1 <- 0.2048/0.0302
+t_ratio_AR1
+t_ratio_AR2 <- -0.1687/0.0306
+t_ratio_AR2
+t_ratio_AR3 <- 0.1319/0.0305
+t_ratio_AR3
+```
+
+The absolute values of all the t-ratios are greater than 1.96.
+Consequently, we conclude that the three AR coefficients
+are significantly different from zero at 5% significance level.
+
+Then we conduct a diagnostic check for the fitted AR(3) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted AR(3) model
+tsdiag(FitAR3, gof.lag = 36)
+```
+
+From the plots of the results from the diagnostic check, it does not look that
+the fitted AR(3) model provides much improvement.
+
+From Figure 5, the sample ACF values are quite large at lags 1-3.  
+We may try a MA(3) model.
+
+```{r}
+#Fit a MA(3) model to the monthly log return series
+FitMA3 <- arima(TB3LRData, order = c(0,0,3))
+FitMA3 
+```
+
+The three MA coefficients appear to be quite significant.
+Then we conduct a diagnostic check for the fitted MA(3) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted MA(3) model
+tsdiag(FitMA3, gof.lag = 36)
+```
+
+From the plots of the results from the diagnostic check, it does not look that
+the fitted MA(3) model provides much improvement. One may look at a combination
+of an AR(3) model and a MA(3) model, say an ARMA(3,3) model. Instead of 
+considering ARMA(3,3) model, we may look at the sample PACF plot in Figure 6
+again. From there, we see that the sample PACF values are large at lags 1, 2, 3,
+4, 9, 12, 15, 16. We may try an AR(16) model with all the AR coefficients,
+except those at lags 1, 2, 3, 4, 9, 12, 15, 16, being set as zero.
+
+```{r}
+#Fit an AR(16) model with some coefficients being set as zero
+FitAR16Part <- arima(TB3LRData, order = c(16,0,0), fixed = c(NA,NA,NA,NA,0,0,0,0,NA,0,0,NA,0,0,NA,NA,NA))
+FitAR16Part 
+```
+
+From the estimation results, most of the AR coefficients (which were not fixed as zero) 
+are significant. Then we conduct a diagnostic check for the fitted AR(16) model.
+
+```{r}
+#Conduct a diagnostic checking using the residuals 
+#from the fitted AR(16) model
+tsdiag(FitAR16Part, gof.lag = 36)
+```
+
+From the plot of the p values for the Ljung-Box statistic, it may be seen that the 
+fitted AR(16) model provides a significant improvement. However, from the standardized residuals plot,
+the fitted AR(16) model cannot explain changing volatility and volatility clustering.
+Putting aside changing volatility and volatility clustering, we single out two 
+candidate models, namely the fitted AR(28) model and the fitted AR(16) model
+with some AR coefficients being set as zero. Of course, we can continue to 
+try other models, such as an ARMA(28, 1) model and an ARMA(16, 1) model. 
+This may be left as a further exercise.
+
+We now compare the two models. Specifically, the in-sample fitting of the models
+are considered. Firstly, from the estimation results of the AR(28) model,
+sigma^2 is estimated as 0.04234; log likelihood = 173.63; aic = -287.26, where
+sigma^2 is the residual variance. From the estimation results of the AR(16) model,
+sigma^2 estimated as 0.04381; log likelihood = 155.7; aic = -291.4. Since
+the log likelihood of the AR(28) model is larger than that of the AR(16) model,
+the AR(28) model is better than the AR(16) model in terms of fitting the data.
+This same conclusion holds by comparing the estimated residual
+variances of the two models. However, since the aic of the AR(16) model
+is smaller than that of the AR(28) model, the AR(16) model is better than
+the AR(28) in terms of fitting the data. This is as expected since the aic
+penalizes the number of parameters in a model and the fitted AR(28) model
+contains much more parameters than the fitted AR(16) model with some AR
+coefficients being set as zero. Therefore, if we do not care about 
+the parsimony of a model, we may select AR(28). If the parsimony 
+of a model is a concern, we may select AR(16).
+
+The fitted AR(28) model is used to predict the future values of the monthly logarithmic
+return series up to 10 steps ahead.
+
+```{r}
+Pred10AR28 <- predict(FitAR28, 10)
+Pred10AR28$pred
+Pred10AR28$se
+```
+
+The fitted AR(16) model is used to predict the future values of the monthly logarithmic
+return series up to 10 steps ahead.
+
+```{r}
+Pred10AR16Part <- predict(FitAR16Part, 10)
+Pred10AR16Part$pred
+Pred10AR16Part$se
+```
+
+From the prediction results of the two fitted models, the predicted values are
+not significantly different from zero. This is as expected since there are no
+obvious trends in the monthly logarithmic return series. Furthermore, 
+the standard errors of the predicted values are large relative to the predicted values. 
+Consequently, the prediction intervals are wide, and they are not very informative. 
+
+In short, there are limitations of linear time series models. Nonlinear time series
+models may be considered when fitting real time series data in diverse fields.
+Finally, let us recall a quotation from George Box "All models are wrong but some are useful",
+(Box (1979)).
+
+## References
+
+1. Board of Governors of the Federal Reserve System (US), 3-Month Treasury Bill Secondary Market Rate, Discount Basis [TB3MS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/TB3MS>, October 29,2023.
+
+2. Bollerslev, T. (1986) Generalized autoregressive conditional heteroskedasticity. Journal of Econometrics 31(3), 307-327.
+
+3. Box, G.E.P. (1979) Robustness in the strategy of scientific model building. In Launer, R.L., Wilkinson, G.N. (eds.): Robustness in Statistics. Academic Press, United States, pp. 201-236. 
+
+4. Box, G.E.P., Jenkins, G.M., Reinsel, G.C., Ljung, G.M. (2015) Time Series Analysis: Forecasting and Control, 5th Edition. John Wiley & Sons, Inc., United States.  
+
+5. Chan, N.H. (2004) Time Series: Applications to Finance. John Wiley & Sons, Inc., United States.  
+
+6. Engle, R.F. (1982) Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation. Econometrica 50(4), 987-1007. 
+
+7. Taylor, S.J. (1986) Modelling Financial Time Series. John Wiley & Sons Ltd, Chichester. 
+
+8. Tsay, R.S. (2013) An Introduction to Analysis of Financial Data with R. John Wiley & Sons, Inc., United States.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
